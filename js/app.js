@@ -30,6 +30,26 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Toggle Password Visibility
+    const togglePasswordBtn = document.getElementById('toggle-password');
+    const passwordInput = document.getElementById('login-password');
+    const iconEyeClosed = document.getElementById('icon-eye-closed');
+    const iconEyeOpen = document.getElementById('icon-eye-open');
+
+    if (togglePasswordBtn && passwordInput) {
+        togglePasswordBtn.addEventListener('click', () => {
+            const isPassword = passwordInput.getAttribute('type') === 'password';
+            passwordInput.setAttribute('type', isPassword ? 'text' : 'password');
+            if (isPassword) {
+                iconEyeClosed.classList.add('hidden');
+                iconEyeOpen.classList.remove('hidden');
+            } else {
+                iconEyeClosed.classList.remove('hidden');
+                iconEyeOpen.classList.add('hidden');
+            }
+        });
+    }
+
     // Login Handle
     loginForm.addEventListener('submit', (e) => {
         e.preventDefault();
@@ -47,11 +67,23 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Logout Handle
-    logoutBtn.addEventListener('click', () => {
+    const handleLogout = () => {
         window.db.logout();
         loginForm.reset();
         checkAuth();
-    });
+    };
+
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', handleLogout);
+    }
+    
+    const mobileLogoutBtn = document.getElementById('logout-btn-mobile');
+    if (mobileLogoutBtn) {
+        mobileLogoutBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            handleLogout();
+        });
+    }
 
     // Sidebar navigation
     document.getElementById('estudiantes-toggle')?.addEventListener('click', (e) => {
