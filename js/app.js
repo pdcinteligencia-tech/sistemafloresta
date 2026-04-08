@@ -99,6 +99,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    let viewHistory = [];
+    let currentViewObj = null;
+
     sidebarLinks.forEach(link => {
         if (link.id === 'estudiantes-toggle') return;
         link.addEventListener('click', (e) => {
@@ -117,6 +120,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('estudiantes-toggle').classList.add('active');
             }
 
+            viewHistory = [];
+            currentViewObj = null;
+
             loadView(view, { level });
         });
     });
@@ -129,7 +135,7 @@ document.addEventListener('DOMContentLoaded', () => {
         'regulations': renderRegulations
     };
 
-    function loadView(viewName, params = {}) {
+    function loadView(viewName, params = {}, isBack = false) {
         const titleMap = {
             'dashboard': 'Panel Principal',
             'students': 'Gestión de Estudiantes',
@@ -138,12 +144,39 @@ document.addEventListener('DOMContentLoaded', () => {
             'regulations': 'Reglamento Interno'
         };
 
+        if (currentViewObj && !isBack) {
+            if (currentViewObj.viewName !== viewName || JSON.stringify(currentViewObj.params) !== JSON.stringify(params)) {
+                viewHistory.push(currentViewObj);
+                if (viewHistory.length > 20) viewHistory.shift();
+            }
+        }
+        currentViewObj = { viewName, params };
+
         document.getElementById('view-title').textContent = titleMap[viewName] || 'Vista';
 
         if (viewsMap[viewName]) {
             viewsMap[viewName](params);
         } else if (viewName === 'student-profile') {
             renderStudentProfile(params.id);
+        }
+
+        if (viewHistory.length > 0) {
+            const backHtml = `
+            <div class="flex justify-start mt-2 mb-2" style="border-top: 1px solid var(--border); padding-top: 1rem;">
+                <button id="global-btn-volver" class="btn btn-gray" style="padding: 0.6rem 2rem; font-size: 1rem; border-radius: 8px;">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="display:inline-block; vertical-align:middle; margin-right:5px; margin-bottom:2px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                    Volver
+                </button>
+            </div>
+            `;
+            const mainContentEl = document.getElementById('main-content');
+            mainContentEl.insertAdjacentHTML('beforeend', backHtml);
+            document.getElementById('global-btn-volver').addEventListener('click', (e) => {
+                e.preventDefault();
+                const prev = viewHistory.pop();
+                currentViewObj = prev;
+                loadView(prev.viewName, prev.params, true);
+            });
         }
     }
 
@@ -261,6 +294,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <td class="font-bold">${getStudentDisplayName(student)}</td>
                                 <td>${recentActivityHtml}</td>
                                 <td>
+                                    <button class="btn btn-sm btn-secondary btn-quick-add-incident mr-1" style="padding: 0.4rem 0.6rem;" data-id="${student.id}">
+                                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                                        Agregar registro
+                                    </button>
                                     <button class="btn btn-sm btn-info btn-view-profile" style="padding: 0.4rem 0.6rem;" data-id="${student.id}">
                                         <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
                                         Ver Perfil
@@ -315,6 +352,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 loadView('student-profile', { id });
             });
         });
+
+        // Bind quick add incident buttons
+        document.querySelectorAll('.btn-quick-add-incident').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const id = parseInt(e.currentTarget.dataset.id);
+                renderAddIncident(id);
+            });
+        });
     }
 
     function renderStudents(params = {}) {
@@ -340,7 +385,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             <tr>
                                 <th>Nombre</th>
                                 <th>Curso / Paralelo</th>
-                                <th>Tutor</th>
                                 <th>Acciones</th>
                             </tr>
                         </thead>
@@ -357,8 +401,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 <tr data-name="${(s.lastName ? s.lastName + ' ' + s.firstName : s.fullName).toLowerCase()}">
                     <td class="font-bold">${getStudentDisplayName(s)}</td>
                     <td>${s.course} - "${s.parallel}"</td>
-                    <td>${s.guardianName}</td>
                     <td>
+                        <button class="btn btn-sm btn-secondary btn-quick-add-incident mr-1" data-id="${s.id}">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                            Agregar registro
+                        </button>
                         <button class="btn btn-sm btn-info btn-view-profile" data-id="${s.id}">
                             <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
                             Ver Perfil
@@ -379,8 +426,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         document.querySelectorAll('.btn-view-profile').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                const id = parseInt(e.target.dataset.id);
+                const id = parseInt(e.currentTarget.dataset.id || e.target.closest('button').dataset.id);
                 loadView('student-profile', { id });
+            });
+        });
+
+        document.querySelectorAll('.btn-quick-add-incident').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const id = parseInt(e.currentTarget.dataset.id);
+                renderAddIncident(id);
             });
         });
 
