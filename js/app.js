@@ -132,7 +132,8 @@ document.addEventListener('DOMContentLoaded', () => {
         'dashboard': renderDashboard,
         'students': renderStudents,
         'add-student': renderAddStudent,
-        'regulations': renderRegulations
+        'regulations': renderRegulations,
+        'reports': renderReports
     };
 
     function loadView(viewName, params = {}, isBack = false) {
@@ -141,7 +142,8 @@ document.addEventListener('DOMContentLoaded', () => {
             'students': 'Gestión de Estudiantes',
             'add-student': 'Registrar Estudiante',
             'student-profile': 'Perfil del Estudiante',
-            'regulations': 'Reglamento Interno'
+            'regulations': 'Reglamento Interno',
+            'reports': 'Informes de Indisciplina'
         };
 
         if (currentViewObj && !isBack) {
@@ -1414,6 +1416,131 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             </div>
         `;
+    }
+
+    function renderReports(params = {}) {
+        const selectedLevel = params.level || 'Secundario';
+        const allStudents = window.db.getStudents();
+        const allIncidents = window.db.getIncidents();
+
+        const reportData = {};
+
+        // Filter students by selected level
+        const students = allStudents.filter(s => (s.level === selectedLevel) || (!s.level && selectedLevel === 'Secundario'));
+
+        students.forEach(s => {
+            const courseKey = `${s.course} "${s.parallel}"`;
+            if (!reportData[courseKey]) {
+                reportData[courseKey] = {
+                    totalStudents: 0,
+                    incidents: {
+                        'Falta Leve': 0,
+                        'Falta Grave': 0,
+                        'Falta Muy Grave': 0,
+                        'Otro': 0
+                    },
+                    totalIncidents: 0
+                };
+            }
+            reportData[courseKey].totalStudents++;
+        });
+
+        // Filter incidents by students in this level
+        const incidents = allIncidents.filter(inc => {
+            const student = window.db.getStudentById(inc.studentId);
+            if (!student) return false;
+            return (student.level === selectedLevel) || (!student.level && selectedLevel === 'Secundario');
+        });
+
+        incidents.forEach(inc => {
+            const student = window.db.getStudentById(inc.studentId);
+            const courseKey = `${student.course} "${student.parallel}"`;
+            if (reportData[courseKey]) {
+                const type = inc.type;
+                if (reportData[courseKey].incidents[type] !== undefined) {
+                    reportData[courseKey].incidents[type]++;
+                } else {
+                    reportData[courseKey].incidents['Otro']++;
+                }
+                reportData[courseKey].totalIncidents++;
+            }
+        });
+
+        const sortedCourses = Object.entries(reportData).sort((a, b) => b[1].totalIncidents - a[1].totalIncidents);
+        const maxIncidents = Math.max(...sortedCourses.map(c => c[1].totalIncidents), 1);
+
+        let html = `
+            <div class="tabs-container mb-2">
+                <div class="tabs" style="border-bottom: 2px solid var(--border);">
+                    <button class="tab reports-tab ${selectedLevel === 'Primario' ? 'active' : ''}" data-level="Primario">Nivel Primario</button>
+                    <button class="tab reports-tab ${selectedLevel === 'Secundario' ? 'active' : ''}" data-level="Secundario">Nivel Secundario</button>
+                </div>
+            </div>
+
+            <div class="card mb-2">
+                <h3 class="mb-1" style="color: var(--primary);">Nivel de Indisciplina por Cursos - Nivel ${selectedLevel}</h3>
+                <p class="text-muted mb-2">Análisis de la cantidad y tipo de faltas cometidas por curso, ordenado por número de incidencias.</p>
+                
+                <div style="overflow-x: auto;">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Curso / Paralelo</th>
+                                <th>Faltas Leves</th>
+                                <th>Faltas Graves</th>
+                                <th>Faltas Muy Graves</th>
+                                <th style="min-width: 250px;">Nivel de Indisciplina (Total)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+        `;
+
+        if (sortedCourses.length === 0) {
+            html += `<tr><td colspan="5" class="text-center text-muted">No hay datos para mostrar en el Nivel ${selectedLevel}</td></tr>`;
+        }
+
+        sortedCourses.forEach(([courseKey, data]) => {
+            const percentage = Math.floor((data.totalIncidents / maxIncidents) * 100);
+            const colorVar = percentage > 75 ? 'var(--danger)' : percentage > 30 ? 'var(--warning)' : 'var(--info)';
+            
+            // Si no hay incidencias, la barra será 0
+            const displayPercentage = data.totalIncidents === 0 ? 0 : Math.max(percentage, 5); // Al menos 5% para que se vea un poco de color
+
+            const barHtml = `
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="flex: 1; background-color: #e2e8f0; border-radius: 4px; height: 12px; overflow: hidden;">
+                        <div style="width: ${displayPercentage}%; background-color: ${colorVar}; height: 100%; transition: width 0.5s ease-in-out;"></div>
+                    </div>
+                    <span style="font-weight: bold; width: 30px; text-align: right;">${data.totalIncidents}</span>
+                </div>
+            `;
+
+            html += `
+                <tr>
+                    <td class="font-bold">${courseKey}</td>
+                    <td><span class="badge badge-info">${data.incidents['Falta Leve']}</span></td>
+                    <td><span class="badge badge-warning">${data.incidents['Falta Grave']}</span></td>
+                    <td><span class="badge badge-danger">${data.incidents['Falta Muy Grave']}</span></td>
+                    <td>${barHtml}</td>
+                </tr>
+            `;
+        });
+
+        html += `
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+
+        mainContent.innerHTML = html;
+
+        // Reports Tab Change Events
+        document.querySelectorAll('.reports-tab').forEach(t => {
+            t.addEventListener('click', (e) => {
+                renderReports({ level: e.currentTarget.dataset.level });
+            });
+        });
     }
 
     function getIncidentBadgeColor(type) {
